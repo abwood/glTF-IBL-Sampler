@@ -10,11 +10,12 @@ namespace IBLLib
 		R32G32B32A32_SFLOAT = 109
 	};
 
-	enum Distribution : unsigned int 
+	enum class Distribution : unsigned int 
 	{
-		Lambertian = 0,
-		GGX = 1,
-		Charlie = 2
+		None = 0,		// No prefiltering, using this option will simply output the input panorama as a ktx2 cubemap
+		Lambertian = 1,	// Generates a prefiltered environment map for diffuse IBL lighting
+		GGX = 2,		// Generate a prefiltered environment map for specular IBL lighting
+		Charlie = 3		// Generates a prefiltered environment map for sheen IBL lighting
 	};
 
 	Result sample(const char* _inputPath, const char* _outputPathCubeMap, const char* _outputPathLUT, Distribution _distribution, unsigned int  _cubemapResolution, unsigned int _mipmapCount, unsigned int _sampleCount, OutputFormat _targetFormat, float _lodBias, bool _inputIsCubeMap, bool _debugOutput);

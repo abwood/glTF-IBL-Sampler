@@ -33,6 +33,16 @@ layout(location = 5) out vec4 outFace5;
 
 layout(location = 6) out vec3 outLUT;
 
+vec3 acesFittedTonemapping(vec3 x)
+{
+    float a = 2.51;
+    float b = 0.03;
+    float c = 2.43;
+    float d = 0.59;
+    float e = 0.14;
+    return clamp((x*(a*x+b))/(x*(c*x+d)+e), 0.0, 1.0);
+}
+
 void writeFace(int face, vec3 colorIn)
 {
 	vec4 color = vec4(colorIn.rgb, 1.0f);
@@ -356,6 +366,22 @@ void panoramaToCubeMap()
 		vec2 src = dirToUV(direction);		
 			
 		writeFace(face, texture(uPanorama, src).rgb);
+	}
+}
+
+// entry point
+void panoramaToCubeMapTonemapped()
+{
+	for(int face = 0; face < 6; ++face)
+	{
+		vec3 scan = uvToXYZ(face, inUV*2.0-1.0);
+
+		vec3 direction = normalize(scan);
+
+		vec2 src = dirToUV(direction);
+
+		vec3 color = acesFittedTonemapping(texture(uPanorama, src).rgb);
+		writeFace(face, color);
 	}
 }
 

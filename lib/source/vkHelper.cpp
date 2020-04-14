@@ -5,6 +5,14 @@
 
 constexpr auto g_PipelineCachePath = "pipeline.cache";
 
+VkBool32 IBLLib::vkHelper::debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
+	VkDebugUtilsMessageTypeFlagsEXT messageType, const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
+	void* pUserData)
+{
+	printf("Validation Layer: %s\n", pCallbackData->pMessage);
+	return VK_FALSE;
+}
+
 IBLLib::vkHelper::vkHelper()
 {
 }
@@ -31,10 +39,12 @@ VkResult IBLLib::vkHelper::initialize(uint32_t _phyDeviceIndex, uint32_t _descri
 		appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
 		appInfo.apiVersion = VK_API_VERSION_1_0;
 
-		std::vector<const char*> layers;
+		std::vector<const char*> validationLayers;
 		if (_debugOutput)
 		{
-			layers.push_back("VK_LAYER_KHRONOS_validation");
+			validationLayers = {
+				"VK_LAYER_KHRONOS_validation"
+			};
 		}
 
 		uint32_t layerCount = 0u;
@@ -43,7 +53,7 @@ VkResult IBLLib::vkHelper::initialize(uint32_t _phyDeviceIndex, uint32_t _descri
 		std::vector<VkLayerProperties> availableLayers(layerCount);
 		vkEnumerateInstanceLayerProperties(&layerCount, availableLayers.data());
 
-		for (auto it = layers.begin(); it != layers.end();)
+		for (auto it = validationLayers.begin(); it != validationLayers.end();)
 		{
 			bool supported = false;
 			for (const VkLayerProperties& prop : availableLayers)
@@ -58,7 +68,7 @@ VkResult IBLLib::vkHelper::initialize(uint32_t _phyDeviceIndex, uint32_t _descri
 
 			if (supported == false)
 			{
-				it = layers.erase(it);
+				it = validationLayers.erase(it);
 			}
 			else
 			{
@@ -70,12 +80,32 @@ VkResult IBLLib::vkHelper::initialize(uint32_t _phyDeviceIndex, uint32_t _descri
 		createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
 		createInfo.pApplicationInfo = &appInfo;
 
+		const char* const debugExtension = VK_EXT_DEBUG_UTILS_EXTENSION_NAME;
 		if (_debugOutput)
 		{
-			createInfo.enabledLayerCount = static_cast<uint32_t>(layers.size());
-			createInfo.ppEnabledLayerNames = layers.data();
+			createInfo.enabledLayerCount = static_cast<uint32_t>(validationLayers.size());
+			createInfo.ppEnabledLayerNames = validationLayers.data();
+
+			uint32_t extensionCount = 0;
+			vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, nullptr);
+			std::vector<VkExtensionProperties> extensions(extensionCount);
+			vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, extensions.data());
+			auto iter = std::find_if(begin(extensions), end(extensions), [=](const VkExtensionProperties& extension)
+				{
+					if (strcmp(extension.extensionName, VK_EXT_DEBUG_UTILS_EXTENSION_NAME) == 0)
+					{
+						return true;
+					}
+					return false;
+				});
+
+			if (iter != extensions.end())
+			{
+				createInfo.enabledExtensionCount = 1;
+				createInfo.ppEnabledExtensionNames = &debugExtension;
+			}
+
 		}
-		// TODO: extensions and layers if needed
 
 		if ((res = vkCreateInstance(&createInfo, nullptr, &m_instance)) != VK_SUCCESS)
 		{
@@ -84,6 +114,28 @@ VkResult IBLLib::vkHelper::initialize(uint32_t _phyDeviceIndex, uint32_t _descri
 		}
 
 		printf("Vulkan instance created\n");
+	}
+
+	if (_debugOutput)
+	{
+		VkDebugUtilsMessengerCreateInfoEXT createInfo = {};
+		createInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
+		createInfo.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT |
+			VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT |
+			VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
+		createInfo.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT |
+			VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
+			VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
+		createInfo.pfnUserCallback = debugCallback;
+		createInfo.pUserData = nullptr;
+
+		auto func = (PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(m_instance, "vkCreateDebugUtilsMessengerEXT");
+		if (func != nullptr) {
+			func(m_instance, &createInfo, nullptr, &m_debugCallback);
+		}
+		else {
+			printf("Failed to initialize debugCallback!");
+		}
 	}
 
 	//
@@ -364,6 +416,12 @@ void IBLLib::vkHelper::shutdown()
 			if (m_debugOutputEnabled)
 			{
 				printf("Vulkan pipeline cache destroyed\n");
+
+				auto func = (PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(m_instance, "vkDestroyDebugUtilsMessengerEXT");
+				if (func != nullptr)
+				{
+					func(m_instance, m_debugCallback, nullptr);
+				}
 			}
 			m_pipelineCache = VK_NULL_HANDLE;
 		}
@@ -570,9 +628,16 @@ VkResult IBLLib::vkHelper::executeCommandBuffers(const std::vector<VkCommandBuff
 
 		if ((res = vkQueueSubmit(m_queue, 1u, &submitInfo, fence)) != VK_SUCCESS)
 		{
-			printf("Failed to submit queue [%u]\n", res);
-			vkDestroyFence(m_logicalDevice, fence, nullptr);
-			return res;
+			if (res == VK_ERROR_DEVICE_LOST)
+			{
+				printf("Failed to submit queue [VK_DEVICE_LOST]\n");
+			}
+			else
+			{
+				printf("Failed to submit queue [%u]\n", res);
+				vkDestroyFence(m_logicalDevice, fence, nullptr);
+				return res;
+			}
 		}
 		if (m_debugOutputEnabled)
 		{

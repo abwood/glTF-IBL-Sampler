@@ -14,7 +14,7 @@ int main(int argc, char* argv[])
 	unsigned int mipLevelCount = 10u;
 	unsigned int cubeMapResolution = 1024u;
 	OutputFormat targetFormat = R16G16B16A16_SFLOAT;
-	Distribution distribution = GGX;
+	Distribution distribution = Distribution::GGX;
 	float lodBias = 0.0f;
 	bool inputIsCubeMap = false;
 	bool enableDebugOutput = false;
@@ -92,15 +92,19 @@ int main(int argc, char* argv[])
 
 			if (strcmp(distributionString, "Lambertian") == 0)
 			{
-				distribution = Lambertian;
+				distribution = Distribution::Lambertian;
 			}
 			else if (strcmp(distributionString, "GGX") == 0)
 			{
-				distribution = GGX;
+				distribution = Distribution::GGX;
 			}
 			else if (strcmp(distributionString, "Charlie") == 0)
 			{
-				distribution = Charlie;
+				distribution = Distribution::Charlie;
+			}
+			else if (strcmp(distributionString, "None") == 0)
+			{
+				distribution = Distribution::None;
 			}
 		}
 		else if (strcmp(argv[i], "-lodBias") == 0)

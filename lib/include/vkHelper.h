@@ -138,6 +138,12 @@ namespace IBLLib
 
 		const VkImageCreateInfo* getCreateInfo(const VkImage _image);
 
+		static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
+			VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
+			VkDebugUtilsMessageTypeFlagsEXT messageType,
+			const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
+			void* pUserData);
+
 	private:
 		struct Buffer
 		{
@@ -160,6 +166,7 @@ namespace IBLLib
 		VkPhysicalDevice m_physicalDevice = VK_NULL_HANDLE;
 		VkPhysicalDeviceFeatures m_deviceFeatures{};
 		VkPhysicalDeviceMemoryProperties m_memoryProperties{};
+		VkDebugUtilsMessengerEXT m_debugCallback{};
 
 		VkDevice m_logicalDevice = VK_NULL_HANDLE;
 		VkQueue m_queue = VK_NULL_HANDLE;
